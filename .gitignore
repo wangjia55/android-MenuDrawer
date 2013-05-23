@@ -18,6 +18,9 @@ library/*
 !library/build.xml
 !library/pom.xml
 !library/project.properties
+!library/.classpath
+!library/.project
+!library/lint.xml
 
 !samples/
 samples/*
