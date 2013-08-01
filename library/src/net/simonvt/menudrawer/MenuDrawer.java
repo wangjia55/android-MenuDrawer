@@ -1,5 +1,7 @@
 package net.simonvt.menudrawer;
 
+import net.simonvt.menudrawer.compat.ActionBarHelper;
+
 import android.app.Activity;
 import android.content.Context;
 import android.content.res.TypedArray;
@@ -34,6 +36,14 @@ public abstract class MenuDrawer extends ViewGroup {
          * @param newState The new drawer state.
          */
         void onDrawerStateChange(int oldState, int newState);
+
+        /**
+         * Called when the drawer slides.
+         *
+         * @param openRatio    Ratio for how open the menu is.
+         * @param offsetPixels Current offset of the menu in pixels.
+         */
+        void onDrawerSlide(float openRatio, int offsetPixels);
     }
 
     /**
@@ -325,6 +335,20 @@ public abstract class MenuDrawer extends ViewGroup {
      */
     protected OnInterceptMoveEventListener mOnInterceptMoveEventListener;
 
+    protected SlideDrawable mSlideDrawable;
+
+    protected Drawable mThemeUpIndicator;
+
+    protected boolean mDrawerIndicatorEnabled;
+
+    private ActionBarHelper mActionBarHelper;
+
+    private int mCurrentUpContentDesc;
+
+    private int mDrawerOpenContentDesc;
+
+    private int mDrawerClosedContentDesc;
+
     /**
      * Attaches the MenuDrawer to the Activity.
      *
@@ -423,7 +447,9 @@ public abstract class MenuDrawer extends ViewGroup {
 
         switch (position) {
             case LEFT:
-                return new LeftDrawer(activity, dragMode);
+                MenuDrawer drawer = new LeftDrawer(activity, dragMode);
+                drawer.setupUpIndicator(activity);
+                return drawer;
             case RIGHT:
                 return new RightDrawer(activity, dragMode);
             case TOP:
@@ -518,6 +544,15 @@ public abstract class MenuDrawer extends ViewGroup {
         mAllowIndicatorAnimation = a.getBoolean(R.styleable.MenuDrawer_mdAllowIndicatorAnimation, false);
 
         mMaxAnimationDuration = a.getInt(R.styleable.MenuDrawer_mdMaxAnimationDuration, DEFAULT_ANIMATION_DURATION);
+
+        final int slideDrawableResId = a.getResourceId(R.styleable.MenuDrawer_mdSlideDrawable, -1);
+        if (slideDrawableResId != -1) {
+            setSlideDrawable(slideDrawableResId);
+        }
+
+        mDrawerOpenContentDesc = a.getResourceId(R.styleable.MenuDrawer_mdDrawerOpenUpContentDescription, 0);
+
+        mDrawerClosedContentDesc = a.getResourceId(R.styleable.MenuDrawer_mdDrawerClosedUpContentDescription, 0);
 
         a.recycle();
 
@@ -880,10 +915,80 @@ public abstract class MenuDrawer extends ViewGroup {
 
     /**
      * Sets the maximum duration of open/close animations.
+     *
      * @param duration The maximum duration in milliseconds.
      */
     public void setMaxAnimationDuration(int duration) {
         mMaxAnimationDuration = duration;
+    }
+
+    protected void updateUpContentDescription() {
+        final int upContentDesc = isMenuVisible() ? mDrawerOpenContentDesc : mDrawerClosedContentDesc;
+        if (mDrawerIndicatorEnabled && mActionBarHelper != null && upContentDesc != mCurrentUpContentDesc) {
+            mCurrentUpContentDesc = upContentDesc;
+            mActionBarHelper.setActionBarDescription(upContentDesc);
+        }
+    }
+
+    /**
+     * Sets the drawable used as the drawer indicator.
+     *
+     * @param drawable The drawable used as the drawer indicator.
+     */
+    public void setSlideDrawable(int drawableRes) {
+        setSlideDrawable(getResources().getDrawable(drawableRes));
+    }
+
+    /**
+     * Sets the drawable used as the drawer indicator.
+     *
+     * @param drawable The drawable used as the drawer indicator.
+     */
+    public void setSlideDrawable(Drawable drawable) {
+        mSlideDrawable = new SlideDrawable(drawable);
+
+        if (mActionBarHelper != null && mDrawerIndicatorEnabled) {
+            mActionBarHelper.setActionBarUpIndicator(mSlideDrawable,
+                    isMenuVisible() ? mDrawerOpenContentDesc : mDrawerClosedContentDesc);
+        }
+    }
+
+    /**
+     * Sets up the drawer indicator. It cna then be shown with {@link #setDrawerIndicatorEnabled(boolean)}.
+     *
+     * @param activity The activity the drawer is attached to.
+     */
+    public void setupUpIndicator(Activity activity) {
+        if (mActionBarHelper == null) {
+            mActionBarHelper = new ActionBarHelper(activity);
+            mThemeUpIndicator = mActionBarHelper.getThemeUpIndicator();
+            mActionBarHelper.setDisplayShowHomeAsUpEnabled(true);
+
+            if (mDrawerIndicatorEnabled) {
+                mActionBarHelper.setActionBarUpIndicator(mSlideDrawable,
+                        isMenuVisible() ? mDrawerOpenContentDesc : mDrawerClosedContentDesc);
+            }
+        }
+    }
+
+    /**
+     * Sets whether the drawer indicator should be enabled. {@link #setupUpIndicator(android.app.Activity)} must be
+     * called first.
+     *
+     * @param enabled Whether the drawer indicator should enabled.
+     */
+    public void setDrawerIndicatorEnabled(boolean enabled) {
+        if (mActionBarHelper == null) {
+            throw new IllegalStateException("setupUpIndicator(Activity) has not been called");
+        }
+
+        mDrawerIndicatorEnabled = enabled;
+        if (enabled) {
+            mActionBarHelper.setActionBarUpIndicator(mSlideDrawable,
+                    isMenuVisible() ? mDrawerOpenContentDesc : mDrawerClosedContentDesc);
+        } else {
+            mActionBarHelper.setActionBarUpIndicator(mThemeUpIndicator, 0);
+        }
     }
 
     /**
@@ -1071,6 +1176,12 @@ public abstract class MenuDrawer extends ViewGroup {
             mMenuContainer.setPadding(0, insets.top, 0, 0);
         }
         return super.fitSystemWindows(insets);
+    }
+
+    protected void dispatchOnDrawerSlide(float openRatio, int offsetPixels) {
+        if (mOnDrawerStateChangeListener != null) {
+            mOnDrawerStateChangeListener.onDrawerSlide(openRatio, offsetPixels);
+        }
     }
 
     /**

@@ -57,6 +57,8 @@ public abstract class DraggableDrawer extends MenuDrawer {
      */
     private static final int CLOSE_ENOUGH = 3;
 
+    protected static final int INVALID_POINTER = -1;
+
     /**
      * Slop before starting a drag.
      */
@@ -91,6 +93,11 @@ public abstract class DraggableDrawer extends MenuDrawer {
      * Indicates whether the drawer is currently being dragged.
      */
     protected boolean mIsDragging;
+
+    /**
+     * The current pointer id.
+     */
+    protected int mActivePointerId = INVALID_POINTER;
 
     /**
      * The initial X position of a drag.
@@ -289,9 +296,19 @@ public abstract class DraggableDrawer extends MenuDrawer {
 
         mOffsetPixels = offsetPixels;
 
+        if (mSlideDrawable != null) {
+            final float offset = Math.abs(mOffsetPixels) / mMenuSize;
+            mSlideDrawable.setOffset(offset);
+            updateUpContentDescription();
+        }
+
         if (newOffset != oldOffset) {
             onOffsetPixelsChanged(newOffset);
             mMenuVisible = newOffset != 0;
+
+            // Notify any attached listeners of the current open ratio
+            final float openRatio = ((float) Math.abs(newOffset)) / mMenuSize;
+            dispatchOnDrawerSlide(openRatio, newOffset);
         }
     }
 
@@ -537,7 +554,7 @@ public abstract class DraggableDrawer extends MenuDrawer {
                 final int childBottom = child.getBottom() + supportGetTranslationY(child);
 
                 if (x >= childLeft && x < childRight && y >= childTop && y < childBottom
-                        &&  canChildScrollHorizontally(child, true, dx, x - childLeft, y - childTop)) {
+                        && canChildScrollHorizontally(child, true, dx, x - childLeft, y - childTop)) {
                     return true;
                 }
             }
