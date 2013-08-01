@@ -16,6 +16,7 @@ library/*
 !library/res/
 !library/AndroidManifest.xml
 !library/pom.xml
+!library/project.properties
 
 !samples/
 samples/*
